@@ -16,167 +16,228 @@ extern "C" {
 #include "gpio.h"
 }
 
-const char* ssid     = "K2-NET";
-const char* password = "Dikt81mp!";
+//const char* ssid     = "K2-NET";
+//const char* password = "Dikt81mp!";
+
+const char* ssid     = "HILDI";
+const char* password = "Dikt81mp1!";
+
+
+String Name = "Dimmer ";
 
 byte DimSteps = 5;
-byte PortsIn[] = {0,4,0,2};
-byte PortsInState[] = {1,1,1,1};
-long PortsInStateChange[] = {0,0,0,0};
+byte PortsIn[] = {0, 4, 0, 2};
+byte PortsInState[] = {1, 1, 1, 1};
+long PortsInStateChange[] = {0, 0, 0, 0};
 
-byte PortsOut[] = {0,12,13,15};
-byte StateOut[] = {0,0,0,0};
-long IsDimming[] = {0,0,0,0};
-String NextDimAction[] = {"null","null","null","null"}; 
+byte PortsOut[] = {0, 12, 13, 15};
+byte StateOut[] = {0, 0, 0, 0};
+long IsDimming[] = {0, 0, 0, 0};
+String NextDimAction[] = {"null", "null", "null", "null"};
 
 
-void SetPort(byte Port, byte value){
+void SetPort(byte Port, byte value) {
   Serialout("SetPort " + String(Port) + " to " + value);
-  analogWrite(PortsOut[Port], (1023*value)/100);
+  StateOut[Port] = value;
+  analogWrite(PortsOut[Port], (1023 * value) / 100);
 }
-
 void Serialout(String Message) {
   Serial.println(Message);
 }
-
-void checkPin(byte Port){ 
+void checkPin(byte Port) {
   int inputRead = digitalRead(PortsIn[Port]);
 
-  if (inputRead != PortsInState[Port]){
+  if (inputRead != PortsInState[Port]) {
     // state changed
     PortsInState[Port] = inputRead;
     PortsInStateChange[Port] = millis();
-    
-    if (inputRead == 0){
+
+    if (inputRead == 0) {
       // warten wenn an
       delay(400);
       // wenn dann aus,
-      if (digitalRead(PortsIn[Port]) == 1){
+      if (digitalRead(PortsIn[Port]) == 1) {
         // war es ein Pulse !!
         if (millis() - IsDimming[Port] > 1000) TogglePort(Port);
-        
-        }
-    }
 
-  }else{
-      if (inputRead == 0){
-        if ((millis() - PortsInStateChange[Port] > 600)) Dim(Port); 
       }
+    }
+  } else {
+    if (inputRead == 0) {
+      if ((millis() - PortsInStateChange[Port] > 600)) Dim(Port);
+    }
   }
-      
- }
+}
+void Dim(byte Port) {
 
-void Dim(byte Port){
-  
-  if (NextDimAction[Port] == "null"){
-    if (StateOut[Port] > 0){
+  if (NextDimAction[Port] == "null") {
+    if (StateOut[Port] > 0) {
       Serialout("first dim for " + String(Port) + " (down)");
       NextDimAction[Port] = "down";
-    }else{
+    } else {
       Serialout("first dim for " + String(Port) + " (up)");
       NextDimAction[Port] = "up";
-    } 
+    }
   }
 
   IsDimming[Port] = millis();
-  if (NextDimAction[Port] == "up"){
-      Serialout("Dim up " + String(Port));
-      if (StateOut[Port] < 10){
+  if (NextDimAction[Port] == "up") {
+    Serialout("Dim up " + String(Port));
+    if (StateOut[Port] < 10) {
       StateOut[Port] = StateOut[Port] + 1;
-      } else{
-        StateOut[Port] = StateOut[Port] + DimSteps;
-        }
-      if (StateOut[Port] > 100 ) {
-        StateOut[Port] = 100;
-        NextDimAction[Port] = "down";
-        }
-        
-    }else{
-      Serialout("Dim down " + String(Port));
-      if (StateOut[Port] < 10){
-      StateOut[Port] = StateOut[Port] - 1;
-      }else{
-        StateOut[Port] = StateOut[Port] - DimSteps;
-        }
-      if (StateOut[Port] < 0 ) {
-        StateOut[Port] = 0;
-         NextDimAction[Port] = "up";
-        }
-      if (StateOut[Port] > 200 ) {
-        StateOut[Port] = 0;
-         NextDimAction[Port] = "up";
-        }
-    }  
-   SetPort(Port, StateOut[Port]);
-   delay(200);
-}
+    } else {
+      StateOut[Port] = StateOut[Port] + DimSteps;
+    }
+    if (StateOut[Port] > 100 ) {
+      StateOut[Port] = 100;
+      NextDimAction[Port] = "down";
+    }
 
-void Dim(byte Port, String dir)
-{
-  if (dir == "heller"){
+  } else {
+    Serialout("Dim down " + String(Port));
+    if (StateOut[Port] < 10) {
+      StateOut[Port] = StateOut[Port] - 1;
+    } else {
+      StateOut[Port] = StateOut[Port] - DimSteps;
+    }
+    if (StateOut[Port] < 0 ) {
+      StateOut[Port] = 0;
+      NextDimAction[Port] = "up";
+    }
+    if (StateOut[Port] > 200 ) {
+      StateOut[Port] = 0;
+      NextDimAction[Port] = "up";
+    }
+  }
+  SetPort(Port, StateOut[Port]);
+  delay(200);
+}
+void DimTo(byte Port, byte valueEnd) {
+  Serialout("DimTo Port " + String(Port) + " from " + String(StateOut[Port]) + " to " + String(valueEnd));
+  byte targetVavlue = 0;
+  if (StateOut[Port] > valueEnd) {
+    // dimdown
+    while (StateOut[Port] > valueEnd) {
+      targetVavlue = StateOut[Port] - 1;
+      SetPort(Port, targetVavlue);
+      delay(2);
+    }
+  } else {
+    // dimup
+    while (StateOut[Port] < valueEnd) {
+      targetVavlue = StateOut[Port] + 1;
+      SetPort(Port, targetVavlue);
+      delay(2);
+    }
+  }
+}
+void Dim(byte Port, String dir) {
+  if (dir == "heller") {
     StateOut[Port] = StateOut[Port] + DimSteps;
-  }else{
+  } else {
     StateOut[Port] = StateOut[Port] - DimSteps;
   }
   SetPort(Port, StateOut[Port]);
 }
-void DimUp(byte Port){
+void DimUp(byte Port) {
   Serialout("DimUp " + String(Port));
-  while(StateOut[Port] < 100) {
+  while (StateOut[Port] < 100) {
     StateOut[Port] = StateOut[Port] + DimSteps;
     if (StateOut[Port] > 100 ) StateOut[Port] = 100;
     SetPort(Port, StateOut[Port]);
     delay(20);
   }
 }
-
-void DimDown(byte Port){
+void DimDown(byte Port) {
   Serialout("DimDown " + String(Port));
-  while(StateOut[Port] > 0) {
-    
+  while (StateOut[Port] > 0) {
+
     if (StateOut[Port] < DimSteps ) {
-      StateOut[Port] = 0;  
-    }else{    
-    StateOut[Port] = StateOut[Port] - DimSteps;
+      StateOut[Port] = 0;
+    } else {
+      StateOut[Port] = StateOut[Port] - DimSteps;
     }
-    
+
     if (StateOut[Port] < 0 ) StateOut[Port] = 0;
     SetPort(Port, StateOut[Port]);
     delay(20);
   }
 }
-
-void TogglePort(byte Port){
+void TogglePort(byte Port) {
   Serialout("TogglePort " + String(Port));
-  if (StateOut[Port] > 0){
+  if (StateOut[Port] > 0) {
     DimDown(Port);
-  }else{
+  } else {
     DimUp(Port);
   }
 }
 
 
 void handleRoot() {
-  byte ch = (char)server.arg("ch").toInt();
+  byte ch = (char)server.arg("fan").toInt();
+  byte fanval = (char)server.arg("fanval").toInt();
   String op = server.arg("op");
-  
+
+  if (op == "1") TogglePort(ch);
+  if (op == "3") DimTo(ch, fanval);
+
+  String result = "<html>\n<head>\n<meta http-equiv=\"content-type\" content=\"text/html;charset=UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<link rel=\"stylesheet\" href=\"https://getbootstrap.com/docs/4.1/dist/css/bootstrap.min.css\">\n<script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js\"></script>\n<script src=\"https://getbootstrap.com/docs/4.1/dist/js/bootstrap.min.js\"></script>\n<title>FreezerControl</title>\n</head>\n\n<body>\n<nav class=\"navbar navbar-expand-md navbar-dark bg-dark\">\n<div class=\"navbar-collapse collapse w-100 order-1 order-md-0 dual-collapse2\"><ul class=\"navbar-nav mr-auto\">";
+  // links linke seite
+  result += "<li class=\"nav-item active\">\n<a class=\"nav-link\" href=\"http://192.168.1.130\">Logger</a>\n</li>";
+  // Titel
+  result += "</ul></div>\n\n<div class=\"mx-auto order-0\"><a class=\"navbar-brand mx-auto\" href=\"#\">" + Name + "</a><button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\".dual-collapse2\"><span class=\"navbar-toggler-icon\"></span></button></div>\n    \n    <div class=\"navbar-collapse collapse w-100 order-3 dual-collapse2\">\n         <ul class=\"navbar-nav ml-auto\">";
+  // links rechte seite
+  result += "<li class=\"nav-item dropdown\">\n  <a class=\"nav-link dropdown-toggle\" href=\"#\" role=\"button\" data-bs-toggle=\"dropdown\" aria-expanded=\"false\">\n\tLinks\n  </a>\n  <ul class=\"dropdown-menu\">\n\t<li><a class=\"dropdown-item\" href=\"http://192.168.8.10/\">Logger</a></li>\n    <li><a class=\"dropdown-item\" href=\"http://192.168.8.12/\">Kabine</a></li>\n    <li><a class=\"dropdown-item\" href=\"http://192.168.8.13/\">Bad</a></li>\n\t<li><a class=\"dropdown-item\" href=\"http://192.168.8.14/\">Außen</a></li>\n\t <li><hr class=\"dropdown-divider\"></li> <li><a class=\"dropdown-item\" href=\"http://192.168.8.11/\">Kuehlschrank</a></li>\n  </ul>\n</li>";
+  // navi ende
+  result += "</ul></div></nav><div class=\"container\"><br>";
+
+  result += "<form id=\"setFanForm\" method='POST'>";
+  result += "<input type='hidden' name='op' id='op'>";
+  result += "<input type='hidden' name='fan' id='fan'>";
+  result += "<input type='hidden' name='fanval' id='fanval'>";
+  result += "</form>";
+
+  result += "<script> function SetFan(op, fanNumber, fanVal) {document.getElementById('op').value = op; document.getElementById('fan').value = fanNumber;document.getElementById('fanval').value=fanVal; document.getElementById(\"setFanForm\").submit();} </script>";
+
+  result += "<div  style=\"width:600px;\">";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(1,1,0)\">Toggle</button>&nbsp;";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,1,0)\">OFF</button>&nbsp;";
+  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[1]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,1,this.value)\">&nbsp;";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,1,100)\">ON</button>&nbsp;";
+  result += "</div></br>";
+
+  result += "<div  style=\"width:600px;\">";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(1,2,0)\">Toggle</button>&nbsp;";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,2,0)\">OFF</button>&nbsp;";
+  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[2]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,2,this.value)\">&nbsp;";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,2,100)\">ON</button>&nbsp;";
+  result += "</div></br>";
+
+  result += "<div  style=\"width:600px;\">";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(1,3,0)\">Toggle</button>&nbsp;";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,3,0)\">OFF</button>&nbsp;";
+  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[3]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,3,this.value)\">&nbsp;";
+  result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,3,100)\">ON</button>&nbsp;";
+  result += "</div></br>";
+
+
+  for (int i = 0; i < server.args(); i++) {
+    result += "<br><div>Arg " + String(i) + ":  [" + server.argName(i) + "]->[" + server.arg(i) + "]</div>";
+  }
+
+
   String Info;
   Info += "<b>Dimmer</b><br><hr>";
   Info += "<b>Kanal 1 </b>  <a href='/?ch=1&op=dunkler'>dunker</a>&nbsp;<a href='/?ch=1&op=toggle'>Toggeln</a>&nbsp;<a href='/?ch=1&op=heller'>heller</a><br>";
   Info += "<b>Kanal 2 </b>  <a href='/?ch=2&op=dunkler'>dunker</a>&nbsp;<a href='/?ch=2&op=toggle'>Toggeln</a>&nbsp;<a href='/?ch=2&op=heller'>heller</a><br>";
   Info += "<b>Kanal 2 </b>  <a href='/?ch=3&op=dunkler'>dunker</a>&nbsp;<a href='/?ch=3&op=toggle'>Toggeln</a>&nbsp;<a href='/?ch=3&op=heller'>heller</a><br>";
+  Info += "ch: " + String(ch) + " op: " + op;
 
-  Info += "ch: " + String(ch) + " op: "+op;
- 
-  server.send(200, "text/html", Info);
- 
-  if (op == "toggle") TogglePort(ch);
-  if (op == "heller") Dim(ch, op);
-  if (op == "dunkler") Dim(ch, op);
+  server.send(200, "text/html", result);
+
 }
-
 void setup() {
-  
+
   Serial.begin(115200);
   while (!Serial);
   {
@@ -197,7 +258,7 @@ void setup() {
   SetPort(3, 0);
 
   analogWriteFreq(31300);
-    WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(200);
     Serial.print(".");
@@ -207,19 +268,19 @@ void setup() {
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
-  
+  Serial.println(WiFi.localIP());
+
   //WiFi.softAP("Dimmer Kueche", "Dikt81mp1");
 
-  
+
   httpUpdater.setup(&server);
   server.on("/", handleRoot);
   server.begin();
 
 }
-
 void loop() {
   server.handleClient();
-  
+
   checkPin(1);
   checkPin(2);
   checkPin(3);
