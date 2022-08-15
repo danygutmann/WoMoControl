@@ -16,6 +16,9 @@ extern "C" {
 #include "gpio.h"
 }
 
+const char* ssid     = "K2-NET";
+const char* password = "Dikt81mp!";
+
 byte DimSteps = 5;
 byte PortsIn[] = {0,4,0,2};
 byte PortsInState[] = {1,1,1,1};
@@ -108,6 +111,15 @@ void Dim(byte Port){
    delay(200);
 }
 
+void Dim(byte Port, String dir)
+{
+  if (dir == "heller"){
+    StateOut[Port] = StateOut[Port] + DimSteps;
+  }else{
+    StateOut[Port] = StateOut[Port] - DimSteps;
+  }
+  SetPort(Port, StateOut[Port]);
+}
 void DimUp(byte Port){
   Serialout("DimUp " + String(Port));
   while(StateOut[Port] < 100) {
@@ -145,20 +157,22 @@ void TogglePort(byte Port){
 
 
 void handleRoot() {
-  //    readEprom(10);
-  //    SwitchOff = now.TotalSeconds()+ 30;
-  //
-  //    RtcTemperature temp = Rtc.GetTemperature();
-  //    String Info;
-  //    Info += "<b>" + DeviceType + " V" + VERSION + SUBVERSION + " OTA";
-  //    Info += " " + Ssid +"</b></h1><HR>";
-  //    Info += "Datum: " + DATE + "<br>";
-  //    Info += "Uhrzeit: "+ TIME +"<br>";
-  //    Info += "Saison: " + TIMEPERIOD + "<br>";
-  //    Info += "Wochentag: "+ Weekdays[dayOfWeek] +"<br>";
+  byte ch = (char)server.arg("ch").toInt();
+  String op = server.arg("op");
+  
+  String Info;
+  Info += "<b>Dimmer</b><br><hr>";
+  Info += "<b>Kanal 1 </b>  <a href='/?ch=1&op=dunkler'>dunker</a>&nbsp;<a href='/?ch=1&op=toggle'>Toggeln</a>&nbsp;<a href='/?ch=1&op=heller'>heller</a><br>";
+  Info += "<b>Kanal 2 </b>  <a href='/?ch=2&op=dunkler'>dunker</a>&nbsp;<a href='/?ch=2&op=toggle'>Toggeln</a>&nbsp;<a href='/?ch=2&op=heller'>heller</a><br>";
+  Info += "<b>Kanal 2 </b>  <a href='/?ch=3&op=dunkler'>dunker</a>&nbsp;<a href='/?ch=3&op=toggle'>Toggeln</a>&nbsp;<a href='/?ch=3&op=heller'>heller</a><br>";
 
-
-  server.send(200, "text/html", "Hallo Welt");
+  Info += "ch: " + String(ch) + " op: "+op;
+ 
+  server.send(200, "text/html", Info);
+ 
+  if (op == "toggle") TogglePort(ch);
+  if (op == "heller") Dim(ch, op);
+  if (op == "dunkler") Dim(ch, op);
 }
 
 void setup() {
@@ -182,22 +196,31 @@ void setup() {
   SetPort(2, 0);
   SetPort(3, 0);
 
-  //  WiFi.softAP("WoMo", "1234");
-  //  IPAddress myIP = WiFi.softAPIP();
-  //
-  //
-  //  httpUpdater.setup(&server);
-  //  server.on("/", handleRoot);
-  // // server.on("/CMD/", handleCmd);
-  //  server.begin();
+  analogWriteFreq(31300);
+    WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(200);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  
+  //WiFi.softAP("Dimmer Kueche", "Dikt81mp1");
+
+  
+  httpUpdater.setup(&server);
+  server.on("/", handleRoot);
+  server.begin();
 
 }
 
 void loop() {
-
-//  server.handleClient();
-
-checkPin(1);
-checkPin(2);
-checkPin(3);
+  server.handleClient();
+  
+  checkPin(1);
+  checkPin(2);
+  checkPin(3);
 }
