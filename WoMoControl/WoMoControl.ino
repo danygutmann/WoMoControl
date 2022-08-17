@@ -1,11 +1,14 @@
-#include <ArduinoOTA.h>
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
-#include <ESP8266HTTPUpdateServer.h>
 #include <EEPROM.h>
+#include <ArduinoOTA.h>
+#include <WiFiClient.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+#include <ESP8266HTTPUpdateServer.h>
 
+HTTPClient sender;
+WiFiClient wifiClient;
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
@@ -16,15 +19,15 @@ extern "C" {
 #include "gpio.h"
 }
 
-//const char* ssid     = "K2-NET";
-//const char* password = "Dikt81mp!";
+const char* ssid     = "K2-NET";
+const char* password = "Dikt81mp!";
 
-const char* ssid     = "HILDI";
-const char* password = "Dikt81mp1!";
+//const char* ssid     = "HILDI";
+//const char* password = "Dikt81mp1!";
 
 
-String Name = "Dimmer ";
-
+String Name = "Dimmer unknown";
+bool debug = false;
 byte DimSteps = 5;
 byte PortsIn[] = {0, 4, 0, 2};
 byte PortsInState[] = {1, 1, 1, 1};
@@ -34,6 +37,7 @@ byte PortsOut[] = {0, 12, 13, 15};
 byte StateOut[] = {0, 0, 0, 0};
 long IsDimming[] = {0, 0, 0, 0};
 String NextDimAction[] = {"null", "null", "null", "null"};
+String KanalName[] = {"CH1", "CH2", "CH3", "CH4"};
 
 
 void SetPort(byte Port, byte value) {
@@ -59,7 +63,6 @@ void checkPin(byte Port) {
       if (digitalRead(PortsIn[Port]) == 1) {
         // war es ein Pulse !!
         if (millis() - IsDimming[Port] > 1000) TogglePort(Port);
-
       }
     }
   } else {
@@ -120,14 +123,14 @@ void DimTo(byte Port, byte valueEnd) {
     while (StateOut[Port] > valueEnd) {
       targetVavlue = StateOut[Port] - 1;
       SetPort(Port, targetVavlue);
-      delay(2);
+      delay(5);
     }
   } else {
     // dimup
     while (StateOut[Port] < valueEnd) {
       targetVavlue = StateOut[Port] + 1;
       SetPort(Port, targetVavlue);
-      delay(2);
+      delay(5);
     }
   }
 }
@@ -172,12 +175,27 @@ void TogglePort(byte Port) {
   }
 }
 
-
+void handleSet() {
+  byte ch = (char)server.arg("ch").toInt();
+  byte value = (char)server.arg("value").toInt();
+  DimTo(ch, value);
+  server.send(200, "text/json", GetInfo());
+}
+void handleGet() {
+  server.send(200, "text/json", GetInfo());
+}
+String GetInfo(){
+  return "{ \"device\": \""+Name+"\", \"channels\": [" + GetChInfo(1) + ", " + GetChInfo(2) + ", " + GetChInfo(3) + ", " + GetChInfo(4) + "]}";
+}
+String GetChInfo(byte ch){
+  return "{\"id\": " + String(ch) + ", \"dir\": \"out\" ,\"name\": \"" + KanalName[ch] + "\", \"value\": " + String(StateOut[ch]) + "}";
+}
 void handleRoot() {
   byte ch = (char)server.arg("fan").toInt();
   byte fanval = (char)server.arg("fanval").toInt();
   String op = server.arg("op");
 
+  if (op == "99") debug = true;
   if (op == "1") TogglePort(ch);
   if (op == "3") DimTo(ch, fanval);
 
@@ -187,7 +205,13 @@ void handleRoot() {
   // Titel
   result += "</ul></div>\n\n<div class=\"mx-auto order-0\"><a class=\"navbar-brand mx-auto\" href=\"#\">" + Name + "</a><button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\".dual-collapse2\"><span class=\"navbar-toggler-icon\"></span></button></div>\n    \n    <div class=\"navbar-collapse collapse w-100 order-3 dual-collapse2\">\n         <ul class=\"navbar-nav ml-auto\">";
   // links rechte seite
-  result += "<li class=\"nav-item dropdown\">\n  <a class=\"nav-link dropdown-toggle\" href=\"#\" role=\"button\" data-bs-toggle=\"dropdown\" aria-expanded=\"false\">\n\tLinks\n  </a>\n  <ul class=\"dropdown-menu\">\n\t<li><a class=\"dropdown-item\" href=\"http://192.168.8.10/\">Logger</a></li>\n    <li><a class=\"dropdown-item\" href=\"http://192.168.8.12/\">Kabine</a></li>\n    <li><a class=\"dropdown-item\" href=\"http://192.168.8.13/\">Bad</a></li>\n\t<li><a class=\"dropdown-item\" href=\"http://192.168.8.14/\">Außen</a></li>\n\t <li><hr class=\"dropdown-divider\"></li> <li><a class=\"dropdown-item\" href=\"http://192.168.8.11/\">Kuehlschrank</a></li>\n  </ul>\n</li>";
+  result += "<li><a class=\"nav-link\" href=\"http://192.168.8.10/\">Logger</a></li>\n";    
+  result += "<li><a class=\"nav-link\" href=\"http://192.168.8.12/\">Kabine</a></li>\n";    
+  result += "<li><a class=\"nav-link\" href=\"http://192.168.8.13/\">Bad</a></li>\n\t";
+  result += "<li><a class=\"nav-link\" href=\"http://192.168.8.14/\">Außen</a></li>\n\t"; 
+ //result += "<li><hr class=\"dropdown-divider\"></li>"; 
+  result += "<li><a class=\"nav-link\" href=\"http://192.168.8.11/\">Kuehlschrank</a></li>";
+  
   // navi ende
   result += "</ul></div></nav><div class=\"container\"><br>";
 
@@ -202,28 +226,30 @@ void handleRoot() {
   result += "<div  style=\"width:600px;\">";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(1,1,0)\">Toggle</button>&nbsp;";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,1,0)\">OFF</button>&nbsp;";
-  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[1]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,1,this.value)\">&nbsp;";
+  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[1]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,1,this.value)\" style=\"width:400px;\">&nbsp;";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,1,100)\">ON</button>&nbsp;";
   result += "</div></br>";
 
   result += "<div  style=\"width:600px;\">";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(1,2,0)\">Toggle</button>&nbsp;";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,2,0)\">OFF</button>&nbsp;";
-  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[2]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,2,this.value)\">&nbsp;";
+  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[2]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,2,this.value)\" style=\"width:400px;\">&nbsp;";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,2,100)\">ON</button>&nbsp;";
   result += "</div></br>";
 
   result += "<div  style=\"width:600px;\">";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(1,3,0)\">Toggle</button>&nbsp;";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,3,0)\">OFF</button>&nbsp;";
-  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[3]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,3,this.value)\">&nbsp;";
+  result += "<input type=\"range\" class=\"form-range\" id=\"customRange1\" value='" + String(StateOut[3]) + "' min=\"0\" max=\"100\" step=\"1\" onInput=\"SetFan(3,3,this.value)\" style=\"width:400px;\">&nbsp;";
   result += "<button type=\"button\" class=\"btn btn-secondary btn-sm\" onclick=\"SetFan(3,3,100)\">ON</button>&nbsp;";
   result += "</div></br>";
 
-
-  for (int i = 0; i < server.args(); i++) {
-    result += "<br><div>Arg " + String(i) + ":  [" + server.argName(i) + "]->[" + server.arg(i) + "]</div>";
+  if (debug){
+    for (int i = 0; i < server.args(); i++) {
+      result += "<br><div>Arg " + String(i) + ":  [" + server.argName(i) + "]->[" + server.arg(i) + "]</div>";
+    }
   }
+  
 
 
   String Info;
@@ -236,6 +262,46 @@ void handleRoot() {
   server.send(200, "text/html", result);
 
 }
+
+void LogToApi(String Ident, String message) {
+  String url = "http://192.168.8.10/write/?I=" + Ident + "&D=" + message;
+
+  if (sender.begin(wifiClient, url)) {
+    // HTTP-Code der Response speichern
+    int httpCode = sender.GET();
+    if (httpCode > 0) {
+
+      // Anfrage wurde gesendet und Server hat geantwortet
+      // Info: Der HTTP-Code für 'OK' ist 200
+      if (httpCode == HTTP_CODE_OK) {
+
+        // Hier wurden die Daten vom Server empfangen
+
+        // String vom Webseiteninhalt speichern
+        String payload = sender.getString();
+
+        // Hier kann mit dem Wert weitergearbeitet werden
+        // ist aber nicht unbedingt notwendig
+        Serial.println(payload);
+      }
+    } else {
+      // Falls HTTP-Error
+      Serial.printf("HTTP-Error: ", sender.errorToString(httpCode).c_str());
+    }
+
+    // Wenn alles abgeschlossen ist, wird die Verbindung wieder beendet
+    sender.end();
+
+  } else {
+    Serial.printf("HTTP-Verbindung konnte nicht hergestellt werden!");
+  }
+
+  delay(100);
+}
+void Syslog(String message){
+  LogToApi(Name, message);
+}
+
 void setup() {
 
   Serial.begin(115200);
@@ -270,18 +336,56 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  //WiFi.softAP("Dimmer Kueche", "Dikt81mp1");
+  String ipaddr = WiFi.localIP().toString();
+  Serial.println("MyIp: " + ipaddr);
+
+  if (ipaddr == "192.168.1.11") {
+    Name = "K&uuml;hlschrank";
+    KanalName[1] = "CH1";
+    KanalName[2] = "CH2";
+    KanalName[3] = "CH3";
+  }
+  else if (ipaddr == "192.168.1.12") {
+    Name = "Dimmer Kabine";
+    KanalName[1] = "CH1";
+    KanalName[2] = "CH2";
+    KanalName[3] = "CH3";
+  }
+  else if (ipaddr == "192.168.1.13") {
+    Name = "Dimmer Bad";
+    KanalName[1] = "CH1";
+    KanalName[2] = "CH2";
+    KanalName[3] = "CH3";
+  }
+  else if (ipaddr == "192.168.1.14") {
+    Name = "Dimmer Außen";
+    KanalName[1] = "CH1";
+    KanalName[2] = "CH2";
+    KanalName[3] = "CH3";
+  }
+  else{
+    // nothing
+  }
+
+  Serial.println("Hello, I´m " + Name);
+  
+
 
 
   httpUpdater.setup(&server);
   server.on("/", handleRoot);
+  server.on("/set/", handleSet);
+  server.on("/get/", handleGet);
   server.begin();
 
+  Syslog("Boot");
+
 }
+
 void loop() {
   server.handleClient();
-
-  checkPin(1);
-  checkPin(2);
-  checkPin(3);
+//
+//  checkPin(1);
+//  checkPin(2);
+//  checkPin(3);
 }
