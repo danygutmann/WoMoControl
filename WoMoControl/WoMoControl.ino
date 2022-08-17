@@ -203,9 +203,8 @@ void handleRoot() {
   // links linke seite
   result += "<li class=\"nav-item active\">\n<a class=\"nav-link\" href=\"http://192.168.1.130\">Logger</a>\n</li>";
   // Titel
-  result += "</ul></div>\n\n<div class=\"mx-auto order-0\"><a class=\"navbar-brand mx-auto\" href=\"#\">" + Name + "</a><button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\".dual-collapse2\"><span class=\"navbar-toggler-icon\"></span></button></div>\n    \n    <div class=\"navbar-collapse collapse w-100 order-3 dual-collapse2\">\n         <ul class=\"navbar-nav ml-auto\">";
+  result += "</ul></div>\n\n<div class=\"mx-auto order-0\"><a class=\"navbar-brand mx-auto\" href=\"\">" + Name + "</a><button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\".dual-collapse2\"><span class=\"navbar-toggler-icon\"></span></button></div>\n    \n    <div class=\"navbar-collapse collapse w-100 order-3 dual-collapse2\">\n         <ul class=\"navbar-nav ml-auto\">";
   // links rechte seite
-  result += "<li><a class=\"nav-link\" href=\"http://192.168.8.10/\">Logger</a></li>\n";    
   result += "<li><a class=\"nav-link\" href=\"http://192.168.8.12/\">Kabine</a></li>\n";    
   result += "<li><a class=\"nav-link\" href=\"http://192.168.8.13/\">Bad</a></li>\n\t";
   result += "<li><a class=\"nav-link\" href=\"http://192.168.8.14/\">Außen</a></li>\n\t"; 
