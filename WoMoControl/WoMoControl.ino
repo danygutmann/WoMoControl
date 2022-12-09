@@ -19,11 +19,11 @@ extern "C" {
 #include "gpio.h"
 }
 
-const char* ssid     = "K2-NET";
-const char* password = "Dikt81mp!";
+//const char* ssid     = "K2-NET";
+//const char* password = "Dikt81mp!";
 
-//const char* ssid     = "HILDI";
-//const char* password = "Dikt81mp1!";
+const char* ssid     = "HILDI";
+const char* password = "Dikt81mp1!";
 
 
 String Name = "Dimmer unknown";
@@ -201,7 +201,7 @@ void handleRoot() {
 
   String result = "<html>\n<head>\n<meta http-equiv=\"content-type\" content=\"text/html;charset=UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<link rel=\"stylesheet\" href=\"https://getbootstrap.com/docs/4.1/dist/css/bootstrap.min.css\">\n<script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js\"></script>\n<script src=\"https://getbootstrap.com/docs/4.1/dist/js/bootstrap.min.js\"></script>\n<title>FreezerControl</title>\n</head>\n\n<body>\n<nav class=\"navbar navbar-expand-md navbar-dark bg-dark\">\n<div class=\"navbar-collapse collapse w-100 order-1 order-md-0 dual-collapse2\"><ul class=\"navbar-nav mr-auto\">";
   // links linke seite
-  result += "<li class=\"nav-item active\">\n<a class=\"nav-link\" href=\"http://192.168.1.130\">Logger</a>\n</li>";
+  result += "<li class=\"nav-item active\">\n<a class=\"nav-link\" href=\"http://192.168.8.10\">Logger</a>\n</li>";
   // Titel
   result += "</ul></div>\n\n<div class=\"mx-auto order-0\"><a class=\"navbar-brand mx-auto\" href=\"\">" + Name + "</a><button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\".dual-collapse2\"><span class=\"navbar-toggler-icon\"></span></button></div>\n    \n    <div class=\"navbar-collapse collapse w-100 order-3 dual-collapse2\">\n         <ul class=\"navbar-nav ml-auto\">";
   // links rechte seite
@@ -338,25 +338,25 @@ void setup() {
   String ipaddr = WiFi.localIP().toString();
   Serial.println("MyIp: " + ipaddr);
 
-  if (ipaddr == "192.168.1.11") {
+  if (ipaddr == "192.168.8.11") {
     Name = "K&uuml;hlschrank";
     KanalName[1] = "CH1";
     KanalName[2] = "CH2";
     KanalName[3] = "CH3";
   }
-  else if (ipaddr == "192.168.1.12") {
+  else if (ipaddr == "192.168.8.12") {
     Name = "Dimmer Kabine";
     KanalName[1] = "CH1";
     KanalName[2] = "CH2";
     KanalName[3] = "CH3";
   }
-  else if (ipaddr == "192.168.1.13") {
+  else if (ipaddr == "192.168.8.13") {
     Name = "Dimmer Bad";
     KanalName[1] = "CH1";
     KanalName[2] = "CH2";
     KanalName[3] = "CH3";
   }
-  else if (ipaddr == "192.168.1.14") {
+  else if (ipaddr == "192.168.8.14") {
     Name = "Dimmer Außen";
     KanalName[1] = "CH1";
     KanalName[2] = "CH2";
@@ -383,8 +383,8 @@ void setup() {
 
 void loop() {
   server.handleClient();
-//
-//  checkPin(1);
-//  checkPin(2);
-//  checkPin(3);
+
+  checkPin(1);
+  checkPin(2);
+  checkPin(3);
 }
