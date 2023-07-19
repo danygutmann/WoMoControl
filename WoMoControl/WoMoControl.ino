@@ -25,9 +25,9 @@ extern "C" {
 const char* ssid     = "HILDI";
 const char* password = "Dikt81mp1!";
 
-
 String Name = "Dimmer unknown";
 bool debug = false;
+bool isOffline = false;
 byte DimSteps = 5;
 byte PortsIn[] = {0, 4, 0, 2};
 byte PortsInState[] = {1, 1, 1, 1};
@@ -263,6 +263,9 @@ void handleRoot() {
 }
 
 void LogToApi(String Ident, String message) {
+
+  if (isOffline) return;
+
   String url = "http://192.168.8.10/write/?I=" + Ident + "&D=" + message;
 
   if (sender.begin(wifiClient, url)) {
@@ -324,10 +327,22 @@ void setup() {
 
   analogWriteFreq(31300);
   WiFi.begin(ssid, password);
+
+  int wifitrys = 0;
+
   while (WiFi.status() != WL_CONNECTED) {
-    delay(200);
+    delay(500);
     Serial.print(".");
-  }
+    wifitrys++;
+    if (wifitrys > 10 ) {
+      isOffline = true;
+      Serial.println("continue without wifi");
+      break;
+    }
+ }
+ if (!isOffline) {
+
+ }
 
   Serial.println("");
   Serial.print("Connected to ");
@@ -367,18 +382,13 @@ void setup() {
   }
 
   Serial.println("Hello, I´m " + Name);
-  
-
-
 
   httpUpdater.setup(&server);
   server.on("/", handleRoot);
   server.on("/set/", handleSet);
   server.on("/get/", handleGet);
   server.begin();
-
   Syslog("Boot");
-
 }
 
 void loop() {
