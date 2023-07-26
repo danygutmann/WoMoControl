@@ -6,11 +6,18 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266HTTPUpdateServer.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <ESP8266WiFiMulti.h>
 
 HTTPClient sender;
 WiFiClient wifiClient;
+
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdater;
+ESP8266WiFiMulti wifiMulti;
+
+PubSubClient MqttClient(wifiClient);
 
 extern "C" {
 #include "user_interface.h"
@@ -19,13 +26,18 @@ extern "C" {
 #include "gpio.h"
 }
 
-//const char* ssid     = "K2-NET";
-//const char* password = "Dikt81mp!";
 
-const char* ssid     = "HILDI";
-const char* password = "Dikt81mp1!";
 
-String Name = "Dimmer unknown";
+wifiMulti.addAP("HILDI", "Dikt81mp1!");
+wifiMulti.addAP("K2-NET", "Dikt81mp!");
+boolean connectioWasAlive = true;
+
+const char* MQTT_BROKER = "192.168.8.1";
+const char* MQTT_Prefix = "Hildi/Control/";
+
+StaticJsonDocument<200> doc;
+
+String Name = "DimmerUnknown";
 bool debug = false;
 bool isOffline = false;
 byte DimSteps = 5;
@@ -39,9 +51,28 @@ long IsDimming[] = {0, 0, 0, 0};
 String NextDimAction[] = {"null", "null", "null", "null"};
 String KanalName[] = {"CH1", "CH2", "CH3", "CH4"};
 
+void handleJson() {
+  char json[] = "{\"sensor\":\"gps\",\"time\":1351824120,\"data\":[48.756080,2.302038]}";
+  DeserializationError error = deserializeJson(doc, json);
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+  const char* sensor = doc["sensor"];
+  long time = doc["time"];
+  double latitude = doc["data"][0];
+  double longitude = doc["data"][1];
 
+  // Print values.
+  Serial.println(sensor);
+  Serial.println(time);
+  Serial.println(latitude, 6);
+  Serial.println(longitude, 6);
+
+}
 void SetPort(byte Port, byte value) {
-  Serialout("SetPort " + String(Port) + " to " + value);
+  //Serialout("SetPort " + String(Port) + " to " + value);
   StateOut[Port] = value;
   analogWrite(PortsOut[Port], (1023 * value) / 100);
 }
@@ -75,10 +106,10 @@ void Dim(byte Port) {
 
   if (NextDimAction[Port] == "null") {
     if (StateOut[Port] > 0) {
-      Serialout("first dim for " + String(Port) + " (down)");
+      //Serialout("first dim for " + String(Port) + " (down)");
       NextDimAction[Port] = "down";
     } else {
-      Serialout("first dim for " + String(Port) + " (up)");
+      //Serialout("first dim for " + String(Port) + " (up)");
       NextDimAction[Port] = "up";
     }
   }
@@ -97,7 +128,7 @@ void Dim(byte Port) {
     }
 
   } else {
-    Serialout("Dim down " + String(Port));
+    //Serialout("Dim down " + String(Port));
     if (StateOut[Port] < 10) {
       StateOut[Port] = StateOut[Port] - 1;
     } else {
@@ -168,6 +199,9 @@ void DimDown(byte Port) {
 }
 void TogglePort(byte Port) {
   Serialout("TogglePort " + String(Port));
+  
+ // MqttPublish("Hildi/Control/"+Name+"/"+String(Port)+"/TogglePort/", "");
+
   if (StateOut[Port] > 0) {
     DimDown(Port);
   } else {
@@ -304,6 +338,66 @@ void Syslog(String message){
   LogToApi(Name, message);
 }
 
+void MqttSetup() {
+  MqttClient.setServer(MQTT_BROKER, 1883);
+  MqttClient.setCallback(MqttCallback);
+}
+void MqttPublish(String payload) {
+
+  String topic = String(MQTT_Prefix)+ Name + "/TX";
+
+  if (MqttClient.connected()) {
+      MqttClient.publish(topic.c_str(), payload.c_str() );
+    }else{
+      Serial.println("MqttClient not connected");
+    }
+}
+void MqttCallback(char* topic, byte* payload, unsigned int length) {
+    String msg;
+    for (byte i = 0; i < length; i++) {
+        char tmp = char(payload[i]);
+        msg += tmp;
+    }
+    Serial.println(msg);
+}
+void MqttCheckConnection() {
+  if (!MqttClient.connected()) {
+    while (!MqttClient.connected()) {
+      MqttClient.connect("ESP8266Client");
+      String topic = String(MQTT_Prefix)+ Name + "/RX";
+      MqttClient.subscribe(topic.c_str());
+      Serial.println("MQTT Topic for recive: " + topic);
+      MqttPublish("Hallo Welt!");
+      delay(100);
+    }
+  }
+}
+void MqttLoop() {
+  MqttClient.loop();
+}
+
+void monitorWiFi()
+{
+  if (wifiMulti.run() != WL_CONNECTED)
+  {
+    if (connectioWasAlive == true)
+    {
+      connectioWasAlive = false;
+      Serial.println("Looking for WiFi ");
+    }
+    Serial.print(".");
+    delay(500);
+  }
+  else if (connectioWasAlive == false)
+  {
+    connectioWasAlive = true;
+    Serial.printf(" connected to %s\n", WiFi.SSID().c_str());
+  }
+
+
+
+}
+
 void setup() {
 
   Serial.begin(115200);
@@ -326,30 +420,16 @@ void setup() {
   SetPort(3, 0);
 
   analogWriteFreq(31300);
-  WiFi.begin(ssid, password);
 
-  int wifitrys = 0;
+  monitorWiFi();
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    wifitrys++;
-    if (wifitrys > 10 ) {
-      isOffline = true;
-      Serial.println("continue without wifi");
-      break;
-    }
  }
  if (!isOffline) {
-
- }
-
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-
   String ipaddr = WiFi.localIP().toString();
   Serial.println("MyIp: " + ipaddr);
 
@@ -377,24 +457,34 @@ void setup() {
     KanalName[2] = "CH2";
     KanalName[3] = "CH3";
   }
-  else{
-    // nothing
-  }
-
-  Serial.println("Hello, I´m " + Name);
-
+  
+  // webserver
   httpUpdater.setup(&server);
   server.on("/", handleRoot);
   server.on("/set/", handleSet);
   server.on("/get/", handleGet);
   server.begin();
-  Syslog("Boot");
+  // MQTT
+  MqttSetup();
+
+  } else{
+    Serial.println("Offline!!");
+  }
+
+  Serial.println("Hello, I´m " + Name);
+  handleJson();
 }
 
 void loop() {
-  server.handleClient();
+  monitorWiFi();
+  if (!isOffline) {
+    server.handleClient();
 
-  checkPin(1);
-  checkPin(2);
-  checkPin(3);
+    MqttCheckConnection();
+    MqttLoop();
+  }
+
+ // checkPin(1);
+ // checkPin(2);
+ // checkPin(3);
 }
